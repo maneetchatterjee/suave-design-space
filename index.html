@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SUAVE Design Space</title>
+<meta name="description" content="Interactive 3-D maps of the SUAVE conceptual aircraft design framework: its energy networks, the components they are built from, and the whole class catalog.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb; --surface-2:#f2f1ee; --surface-3:#e6e5e1;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#82817c;
+  --rule:#d8d7d2; --accent:#A8481B;
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --good:#0ca30c;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --surface-1:#141413; --surface-2:#1e1e1d; --surface-3:#2b2b29;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8e8d85;
+    --rule:#343431; --accent:#E17F45;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --good:#0ca30c;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--surface-1); color:var(--text-primary);
+  font-family:"Newsreader",Georgia,serif; font-size:17px; line-height:1.62;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:980px; margin:0 auto; padding:0 28px 90px}
+h1,h2,h3,.ui{font-family:"Archivo","Helvetica Neue",Arial,sans-serif}
+.mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+header{padding:64px 0 34px; border-bottom:2px solid var(--text-primary)}
+.eyebrow{font-family:"Archivo",sans-serif; font-size:11.5px; font-weight:600;
+  letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin-bottom:14px}
+h1{margin:0 0 14px; font-size:clamp(34px,6vw,58px); font-weight:700;
+  letter-spacing:-.024em; line-height:1.0}
+.dek{max-width:62ch; margin:0; color:var(--text-secondary); font-size:19px}
+.stats{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:1px;
+  background:var(--rule); border:1px solid var(--rule); border-radius:3px;
+  overflow:hidden; margin:30px 0 0}
+.stat{background:var(--surface-2); padding:14px 15px}
+.stat .k{font-family:"Archivo",sans-serif; font-size:10px; font-weight:600;
+  letter-spacing:.11em; text-transform:uppercase; color:var(--text-muted)}
+.stat .v{font-family:"JetBrains Mono",monospace; font-size:24px; font-weight:700;
+  letter-spacing:-.02em; line-height:1.3}
+.cards{display:grid; grid-template-columns:repeat(auto-fit,minmax(310px,1fr)); gap:18px; margin-top:34px}
+a.card{display:block; text-decoration:none; color:inherit; background:var(--surface-2);
+  border:1px solid var(--rule); border-left:3px solid var(--accent); border-radius:5px;
+  padding:20px 22px; transition:transform .12s, border-color .12s}
+a.card:hover{transform:translateY(-2px); border-color:var(--accent)}
+a.card h2{margin:0 0 6px; font-size:20px; font-weight:700; letter-spacing:-.01em}
+a.card p{margin:0 0 10px; font-size:15px; color:var(--text-secondary); line-height:1.5}
+a.card .go{font-family:"Archivo",sans-serif; font-size:12.5px; font-weight:600; color:var(--accent)}
+.tagrow{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px}
+.tag{font-family:"JetBrains Mono",monospace; font-size:10.5px; padding:2px 7px;
+  border-radius:9px; border:1px solid var(--rule); color:var(--text-muted)}
+section{padding-top:46px}
+h2.sec{font-size:24px; font-weight:600; letter-spacing:-.015em; margin:0 0 10px}
+p{max-width:70ch; color:var(--text-secondary)}
+p strong{color:var(--text-primary); font-weight:600}
+ul{max-width:70ch; color:var(--text-secondary)} li{margin:6px 0}
+table{border-collapse:collapse; width:100%; font-size:14.5px; margin-top:12px;
+  border:1px solid var(--rule); border-radius:3px; overflow:hidden}
+th{font-family:"Archivo",sans-serif; font-size:10px; font-weight:600; letter-spacing:.11em;
+  text-transform:uppercase; color:var(--text-muted); text-align:left; padding:10px 12px;
+  background:var(--surface-3); border-bottom:1px solid var(--rule)}
+td{padding:9px 12px; border-bottom:1px solid var(--rule); color:var(--text-secondary)}
+tr:last-child td{border-bottom:none}
+td.mono{font-family:"JetBrains Mono",monospace; font-size:12.5px; color:var(--text-primary)}
+footer{margin-top:60px; padding-top:20px; border-top:1px solid var(--rule);
+  font-family:"JetBrains Mono",monospace; font-size:11.5px; color:var(--text-muted)}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">SUAVE 2.5.2 · conceptual aircraft design</div>
+    <h1>The SUAVE design space,<br>drawn from the source</h1>
+    <p class="dek">Two interactive 3-D maps of the SUAVE framework: the energy networks and the
+    components each is built from, and the complete class catalog with its inheritance and
+    import structure. Every node and every link is read out of the code, not drawn by hand.</p>
+    <div class="stats">
+      <div class="stat"><div class="k">packages</div><div class="v">175</div></div>
+      <div class="stat"><div class="k">modules</div><div class="v">409</div></div>
+      <div class="stat"><div class="k">classes</div><div class="v">289</div></div>
+      <div class="stat"><div class="k">energy networks</div><div class="v">17</div></div>
+      <div class="stat"><div class="k">inherits</div><div class="v">272</div></div>
+      <div class="stat"><div class="k">imports</div><div class="v">2,036</div></div>
+    </div>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="component_graph.html">
+      <div class="tagrow"><span class="tag">17 networks</span><span class="tag">40 components</span><span class="tag">139 links</span></div>
+      <h2>Propulsion view</h2>
+      <p>Seven propulsion families, the seventeen SUAVE energy networks inside them, the forty
+      components they are assembled from, and the package each component's class lives in.
+      Components sit in sectors by role, so shared parts show up as hubs.</p>
+      <div class="go">open the propulsion graph →</div>
+    </a>
+    <a class="card" href="suave_catalog_graph.html">
+      <div class="tagrow"><span class="tag">873 nodes</span><span class="tag">3,314 edges</span><span class="tag">sunburst</span></div>
+      <h2>Full catalog</h2>
+      <p>The whole package as a sunburst: containment is the geometry, and the third dimension
+      carries the connections — inheritance arcs above the plane, imports below. Depth, package
+      and kind filters, plus a coverage mode.</p>
+      <div class="go">open the catalog graph →</div>
+    </a>
+  </div>
+
+  <section>
+    <h2 class="sec">Where the links come from</h2>
+    <p>The point of these maps is that nothing in them is a guess. Each edge is extracted from
+    the SUAVE source by parsing it:</p>
+    <table>
+      <thead><tr><th>Link</th><th>Extracted from</th><th>Count</th></tr></thead>
+      <tbody>
+        <tr><td class="mono">contains</td><td>the package tree on disk</td><td>872</td></tr>
+        <tr><td class="mono">inherits</td><td>class bases, resolved through each defining module's own imports</td><td>272</td></tr>
+        <tr><td class="mono">imports</td><td>intra-SUAVE import statements</td><td>2,036</td></tr>
+        <tr><td class="mono">uses</td><td>which components each energy network is assembled from</td><td>134</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:14px">Name resolution is scoped rather than global, which matters more
+    than it sounds: SUAVE defines <span class="mono">Fidelity_Zero</span> four times — in
+    Aerodynamics, Stability, Noise and Weights — and <span class="mono">AVL</span>,
+    <span class="mono">Costs</span> and several mission segments are duplicated too. Matching
+    base classes by bare name would merge them into one node and invent edges that do not
+    exist, so every name is resolved through the import table of the module that uses it.</p>
+  </section>
+
+  <section>
+    <h2 class="sec">Reading them</h2>
+    <ul>
+      <li>Drag to rotate, wheel to zoom, hover to isolate a node with its links.</li>
+      <li>Click to pin a node and read its detail — module path, bases, subclasses, imports,
+        and for a network its Mach envelope, engine counts and component chain.</li>
+      <li>Imports are off by default in the catalog view; 2,036 arcs at once is a hairball.</li>
+      <li>Every view has a table fallback, and both light and dark are designed rather than inverted.</li>
+    </ul>
+  </section>
+
+  <footer>
+    Generated from a local checkout of SUAVE 2.5.2 · the pages are static and self-contained,
+    with no tracking and no backend · SUAVE is developed by the SUAVE team and is licensed LGPL-2.1; these pages carry only derived metadata — names, paths and structure — not SUAVE source
+  </footer>
+</div>
+</body>
+</html>

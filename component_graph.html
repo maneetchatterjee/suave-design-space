@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SUAVE Component Graph</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap">
+<style>
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb; --surface-2:#f2f1ee; --surface-3:#e6e5e1;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --text-muted:#82817c;
+  --rule:#d8d7d2; --accent:#A8481B;
+  /* categorical slots 1-8, fixed order - one per component role */
+  --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a; --s4:#eda100;
+  --s5:#e87ba4; --s6:#008300; --s7:#4a3aa7; --s8:#e34948;
+  --good:#0ca30c; --critical:#d03b3b;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme: dark;
+    --surface-1:#1a1a19; --surface-2:#232322; --surface-3:#2e2e2c;
+    --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8e8d85;
+    --rule:#383835; --accent:#E17F45;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+    --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme: dark;
+  --surface-1:#1a1a19; --surface-2:#232322; --surface-3:#2e2e2c;
+  --text-primary:#ffffff; --text-secondary:#c3c2b7; --text-muted:#8e8d85;
+  --rule:#383835; --accent:#E17F45;
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; background:var(--surface-1); color:var(--text-primary);
+  font-family:"Archivo","Helvetica Neue",Arial,sans-serif; font-size:14px; overflow:hidden}
+.mono{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace}
+
+#app{display:grid; grid-template-columns:1fr 320px; grid-template-rows:auto 1fr; height:100%}
+header{grid-column:1/-1; display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  padding:12px 18px; border-bottom:1px solid var(--rule); background:var(--surface-2)}
+header h1{margin:0; font-size:17px; font-weight:700; letter-spacing:-.01em}
+header .sub{color:var(--text-secondary); font-size:13px}
+header .counts{margin-left:auto; display:flex; gap:14px; font-size:12px; color:var(--text-secondary)}
+header .counts b{color:var(--text-primary); font-family:"JetBrains Mono",monospace}
+
+#stage{position:relative; overflow:hidden; background:var(--surface-1)}
+canvas{display:block; width:100%; height:100%; cursor:grab}
+canvas.dragging{cursor:grabbing}
+
+#controls{position:absolute; left:14px; top:14px; display:flex; flex-direction:column; gap:8px;
+  background:color-mix(in srgb, var(--surface-2) 92%, transparent);
+  border:1px solid var(--rule); border-radius:6px; padding:10px 12px; max-width:260px;
+  backdrop-filter:blur(3px)}
+#controls .row{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.ttl{font-size:10px; font-weight:700; letter-spacing:.11em; text-transform:uppercase;
+  color:var(--text-muted)}
+button,.chip{font:inherit; font-size:12px; padding:3px 9px; border-radius:20px; cursor:pointer;
+  border:1px solid var(--rule); background:var(--surface-3); color:var(--text-secondary)}
+button:hover,.chip:hover{border-color:var(--text-muted); color:var(--text-primary)}
+.chip.on{background:var(--text-primary); color:var(--surface-1); border-color:var(--text-primary)}
+button:focus-visible,.chip:focus-visible,input:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+input[type=search]{font:inherit; font-size:12px; width:100%; padding:4px 8px; border-radius:4px;
+  border:1px solid var(--rule); background:var(--surface-1); color:var(--text-primary)}
+label.ck{display:flex; align-items:center; gap:5px; font-size:12px; color:var(--text-secondary); cursor:pointer}
+
+#legend{position:absolute; right:14px; bottom:14px; display:flex; flex-direction:column; gap:5px;
+  background:color-mix(in srgb, var(--surface-2) 92%, transparent); border:1px solid var(--rule);
+  border-radius:6px; padding:10px 12px; font-size:12px; backdrop-filter:blur(3px)}
+#legend .item{display:flex; align-items:center; gap:7px; color:var(--text-secondary)}
+#legend .dot{width:10px; height:10px; border-radius:50%; flex:none}
+#legend .ln{width:18px; height:0; border-top-width:2px; flex:none}
+
+#tip{position:absolute; pointer-events:none; opacity:0; transition:opacity .08s;
+  background:var(--surface-1); border:1px solid var(--rule); border-radius:5px;
+  padding:6px 9px; font-size:12px; box-shadow:0 3px 12px rgba(0,0,0,.18); max-width:280px}
+#tip .n{font-weight:700} #tip .m{color:var(--text-secondary); font-size:11px}
+
+aside{border-left:1px solid var(--rule); background:var(--surface-2); overflow-y:auto; padding:14px 16px}
+aside h2{margin:0 0 2px; font-size:15px; font-weight:700; word-break:break-word}
+aside .kind{font-size:11px; text-transform:uppercase; letter-spacing:.1em; color:var(--text-muted)}
+aside section{margin-top:14px}
+aside h3{margin:0 0 5px; font-size:10.5px; font-weight:700; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--text-muted)}
+aside p{margin:0 0 6px; font-size:13px; color:var(--text-secondary); line-height:1.5}
+aside ul{margin:0; padding-left:16px; font-size:12.5px; color:var(--text-secondary); line-height:1.6}
+aside li b{color:var(--text-primary); font-weight:600}
+aside .path{font-family:"JetBrains Mono",monospace; font-size:11px; color:var(--text-secondary);
+  word-break:break-all}
+.pill{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.05em;
+  text-transform:uppercase; padding:1px 7px; border-radius:9px; border:1px solid; margin-right:4px}
+.link{cursor:pointer; text-decoration:underline dotted; text-underline-offset:2px}
+.link:hover{color:var(--text-primary)}
+table{border-collapse:collapse; width:100%; font-size:12px; margin-top:6px}
+th,td{text-align:left; padding:4px 6px; border-bottom:1px solid var(--rule); vertical-align:top;
+  color:var(--text-secondary)}
+th{font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--text-muted)}
+#tablewrap{display:none; grid-column:1/-1; overflow:auto; padding:16px 20px; background:var(--surface-1)}
+body.table-mode #stage,body.table-mode aside{display:none}
+body.table-mode #tablewrap{display:block}
+@media (max-width:900px){#app{grid-template-columns:1fr} aside{display:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>SUAVE component graph</h1>
+    <span class="sub">every energy network and the components it is built from</span>
+    <a href="index.html">← overview</a>
+    <a href="suave_catalog_graph.html">full catalog view →</a>
+    <div class="counts" id="counts"></div>
+  </header>
+
+  <div id="stage">
+    <canvas id="c"></canvas>
+
+    <div id="controls">
+      <div class="ttl">view</div>
+      <div class="row">
+        <button id="reset">reset</button>
+        <button id="spin" class="chip on">auto-rotate</button>
+        <button id="labels" class="chip">all labels</button>
+        <button id="theme">theme</button>
+      </div>
+      <div class="ttl">tiers</div>
+      <div class="row" id="tierRow"></div>
+      <div class="ttl">families</div>
+      <div class="row" id="famRow"></div>
+      <div class="ttl">links</div>
+      <div class="row" id="edgeRow"></div>
+      <div class="ttl">find</div>
+      <input type="search" id="search" placeholder="component or network…" autocomplete="off">
+      <div class="row"><button id="tableBtn">table view</button></div>
+    </div>
+
+    <div id="legend"></div>
+    <div id="tip"></div>
+  </div>
+
+  <aside id="panel"></aside>
+
+  <div id="tablewrap">
+    <button id="backBtn">← back to graph</button>
+    <div id="tables"></div>
+  </div>
+</div>
+
+<script>
+const DATA = {"networks":[{"name":"Battery_Propeller","family":"electric","chain":["Propeller","Motor"],"energy":["Battery_Lithium_Ion_LiNiMnCoO2_18650"],"support":["Electronic_Speed_Controller","Avionics","Payload"],"thermal":[],"mach":[0.0,0.45],"variable_mass":false,"engine_counts":[1,2,4,6,8,12],"mountings":["wing","wing_distributed","nose","fuselage_aft"],"wired":true,"excluded":false,"variables":["battery_mass_fraction","bus_voltage_v","propeller_blade_count","propeller_tip_mach","propeller_disk_loading_nm2","motor_efficiency","esc_efficiency"],"description":"Battery-electric tractor propellers; the distributed-electric workhorse configuration (X-57 Maxwell class).","suave":"Components/Energy/Networks/Battery_Propeller.py"},{"name":"Battery_Ducted_Fan","family":"electric","chain":["Ram","Compression_Nozzle","Fan","Expansion_Nozzle"],"energy":["Battery_Lithium_Ion_LiNiMnCoO2_18650"],"support":["Electronic_Speed_Controller","Avionics","Payload"],"thermal":[],"mach":[0.0,0.65],"variable_mass":false,"engine_counts":[2,4,6],"mountings":["wing","fuselage_aft","fuselage_side"],"wired":false,"excluded":false,"variables":["battery_mass_fraction","bus_voltage_v","fan_pressure_ratio","fan_polytropic_efficiency","nozzle_pressure_ratio","motor_efficiency"],"description":"Battery-electric ducted fans - higher disc loading and lower noise than open propellers.","suave":"Components/Energy/Networks/Battery_Ducted_Fan.py"},{"name":"Lift_Cruise","family":"electric","chain":["Lift_Rotor","Propeller","Motor"],"energy":["Battery_Lithium_Ion_LiNiMnCoO2_18650"],"support":["Electronic_Speed_Controller","Avionics","Payload"],"thermal":[],"mach":[0.0,0.35],"variable_mass":false,"engine_counts":[5,9,13],"mountings":["wing","boom"],"wired":false,"excluded":true,"variables":["battery_mass_fraction","bus_voltage_v","lift_disk_loading_nm2"],"description":"Separate lift rotors and cruise propellers - the eVTOL lift-plus-cruise architecture.","suave":"Components/Energy/Networks/Lift_Cruise.py"},{"name":"Solar","family":"solar","chain":["Propeller","Motor"],"energy":["Solar_Panel","Battery_Lithium_Ion_LiNiMnCoO2_18650"],"support":["Solar_Logic","Electronic_Speed_Controller","Avionics","Payload"],"thermal":[],"mach":[0.0,0.2],"variable_mass":false,"engine_counts":[1,2,4],"mountings":["wing","nose","wing_distributed"],"wired":true,"excluded":false,"variables":["solar_panel_area_fraction","panel_efficiency","mppt_efficiency","battery_mass_fraction","bus_voltage_v","propeller_blade_count","propeller_tip_mach","propeller_disk_loading_nm2"],"description":"Solar-electric with battery buffering and MPPT logic; high-altitude long-endurance.","suave":"Components/Energy/Networks/Solar.py"},{"name":"Solar_Low_Fidelity","family":"solar","chain":["Propeller_Lo_Fid","Motor_Lo_Fid"],"energy":["Solar_Panel","Battery_Lithium_Ion_LiNiMnCoO2_18650"],"support":["Solar_Logic","Electronic_Speed_Controller","Avionics","Payload"],"thermal":[],"mach":[0.0,0.2],"variable_mass":false,"engine_counts":[1,2],"mountings":["wing","nose"],"wired":true,"excluded":false,"variables":["solar_panel_area_fraction","panel_efficiency","mppt_efficiency","battery_mass_fraction","propulsive_efficiency","propeller_blade_count","propeller_tip_mach","propeller_disk_loading_nm2"],"description":"Solar-electric with a low-fidelity propeller and motor, for cheap sizing sweeps.","suave":"Components/Energy/Networks/Solar_Low_Fidelity.py"},{"name":"Turbofan","family":"gas_turbine","chain":["Ram","Compression_Nozzle","Fan","Compressor","Compressor","Combustor","Turbine","Turbine","Expansion_Nozzle","Expansion_Nozzle"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,0.92],"variable_mass":true,"engine_counts":[2,3,4],"mountings":["wing","fuselage_aft","tail"],"wired":true,"excluded":false,"variables":["bypass_ratio","fan_pressure_ratio","overall_pressure_ratio","lpc_pressure_ratio","hpc_pressure_ratio","turbine_inlet_temperature_k","polytropic_efficiency_compressor","polytropic_efficiency_turbine","combustor_efficiency","nozzle_pressure_ratio","sealevel_static_thrust_n"],"description":"Two-spool separate-flow turbofan; the transport standard.","suave":"Components/Energy/Networks/Turbofan.py"},{"name":"Turbojet_Super","family":"gas_turbine","chain":["Ram","Compression_Nozzle","Compressor","Compressor","Combustor","Turbine","Turbine","Supersonic_Nozzle"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,2.2],"variable_mass":true,"engine_counts":[2,4],"mountings":["wing","wing_buried","fuselage_aft"],"wired":true,"excluded":false,"variables":["overall_pressure_ratio","lpc_pressure_ratio","hpc_pressure_ratio","turbine_inlet_temperature_k","polytropic_efficiency_compressor","polytropic_efficiency_turbine","combustor_efficiency","inlet_pressure_recovery","sealevel_static_thrust_n","capture_area_m2"],"description":"Supersonic turbojet with a supersonic exhaust nozzle (Concorde class).","suave":"Components/Energy/Networks/Turbojet_Super.py"},{"name":"Ducted_Fan","family":"gas_turbine","chain":["Ram","Compression_Nozzle","Fan","Expansion_Nozzle"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,0.8],"variable_mass":false,"engine_counts":[1,2,4],"mountings":["wing","fuselage_aft"],"wired":false,"excluded":false,"variables":["fan_pressure_ratio","fan_polytropic_efficiency","nozzle_pressure_ratio"],"description":"Ducted fan without a core - shaft-driven, for hybrid and turboelectric use.","suave":"Components/Energy/Networks/Ducted_Fan.py"},{"name":"Internal_Combustion_Propeller","family":"piston","chain":["Internal_Combustion_Engine","Propeller"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,0.35],"variable_mass":true,"engine_counts":[1,2,4],"mountings":["nose","wing","fuselage_aft"],"wired":true,"excluded":false,"variables":["engine_rated_power_kw","engine_rated_speed_rpm","bsfc_kg_per_kwh","propeller_blade_count","propeller_tip_mach","propeller_disk_loading_nm2"],"description":"Piston engine driving a variable-pitch propeller (Cessna 172 / Beech 99 class).","suave":"Components/Energy/Networks/Internal_Combustion_Propeller.py"},{"name":"Internal_Combustion_Propeller_Constant_Speed","family":"piston","chain":["Internal_Combustion_Engine","Propeller"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,0.35],"variable_mass":true,"engine_counts":[1,2],"mountings":["nose","wing"],"wired":true,"excluded":false,"variables":["engine_rated_power_kw","engine_rated_speed_rpm","bsfc_kg_per_kwh","propeller_blade_count","governor_speed_rpm","propeller_tip_mach"],"description":"Piston engine with a constant-speed propeller - the governor holds rpm and pitch absorbs the power.","suave":"Components/Energy/Networks/Internal_Combustion_Propeller_Constant_Speed.py"},{"name":"Ramjet","family":"high_speed","chain":["Ram","Compression_Nozzle","Combustor","Supersonic_Nozzle"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[2.0,5.0],"variable_mass":true,"engine_counts":[1,2],"mountings":["fuselage_buried","fuselage_side"],"wired":true,"excluded":false,"variables":["inlet_pressure_recovery","combustor_efficiency","combustor_pressure_ratio","turbine_inlet_temperature_k","nozzle_pressure_ratio","capture_area_m2"],"description":"Ramjet: no rotating machinery, subsonic combustion behind a supersonic inlet. Cannot produce static thrust.","suave":"Components/Energy/Networks/Ramjet.py"},{"name":"Scramjet","family":"high_speed","chain":["Ram","Compression_Nozzle","Combustor","Supersonic_Nozzle"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[5.0,10.0],"variable_mass":true,"engine_counts":[1,2],"mountings":["fuselage_buried"],"wired":true,"excluded":false,"variables":["inlet_pressure_recovery","combustor_efficiency","combustor_area_ratio","fuel_equivalence_ratio","nozzle_expansion_ratio","capture_area_m2"],"description":"Scramjet: supersonic combustion, hypersonic cruise.","suave":"Components/Energy/Networks/Scramjet.py"},{"name":"Liquid_Rocket","family":"high_speed","chain":["Rocket_Combustor","de_Laval_Nozzle"],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,8.0],"variable_mass":true,"engine_counts":[1,2,4,5],"mountings":["fuselage_aft"],"wired":true,"excluded":false,"variables":["chamber_pressure_pa","chamber_temperature_k","expansion_ratio","oxidiser_fuel_ratio","throat_area_m2","propellant_mass_fraction"],"description":"Liquid bipropellant rocket with a de Laval nozzle (Rocketdyne F-1 / J-2 class).","suave":"Components/Energy/Networks/Liquid_Rocket.py"},{"name":"Serial_Hybrid_Ducted_Fan","family":"hybrid","chain":["Ram","Compression_Nozzle","Fan","Expansion_Nozzle","Generator_Zero_Fid","Motor_Lo_Fid"],"energy":["Fuel_Tank","Battery_Lithium_Ion_LiNiMnCoO2_18650"],"support":["Electronic_Speed_Controller","Avionics","Payload"],"thermal":[],"mach":[0.0,0.7],"variable_mass":true,"engine_counts":[2,4],"mountings":["wing","fuselage_aft"],"wired":false,"excluded":false,"variables":["battery_mass_fraction","generator_power_kw","generator_efficiency","motor_efficiency","hybridisation_ratio","bus_voltage_v","fan_pressure_ratio"],"description":"Serial hybrid: a turbogenerator charges a battery that drives electric ducted fans. Two energy sources, one shaft path.","suave":"Components/Energy/Networks/Serial_Hybrid_Ducted_Fan.py"},{"name":"Turboelectric_HTS_Ducted_Fan","family":"hybrid","chain":["Ram","Compression_Nozzle","Fan","Expansion_Nozzle","Turboelectric","Motor_HTS_Rotor","Motor_Lo_Fid"],"energy":["Fuel_Tank"],"support":["Cryogenic_Lead","HTS_DC_Supply","Avionics","Payload"],"thermal":["Cryocooler","Cryogenic_Heat_Exchanger"],"mach":[0.0,0.8],"variable_mass":true,"engine_counts":[2,4,6],"mountings":["wing","wing_distributed","fuselage_aft"],"wired":false,"excluded":false,"variables":["cryogen_proportion","rotor_skin_temperature_k","number_of_leads","number_of_powersupplies","cryocooler_efficiency","hts_current_a","fan_pressure_ratio","generator_efficiency"],"description":"Turboelectric with high-temperature superconducting motors, cryogenic leads and a cryocooler.","suave":"Components/Energy/Networks/Turboelectric_HTS_Ducted_Fan.py"},{"name":"Turboelectric_HTS_Dynamo_Ducted_Fan","family":"hybrid","chain":["Ram","Compression_Nozzle","Fan","Expansion_Nozzle","Turboelectric","Motor_HTS_Rotor","Motor_Lo_Fid"],"energy":["Fuel_Tank"],"support":["HTS_DC_Dynamo_Basic","HTS_Dynamo_Supply","Avionics","Payload"],"thermal":["Cryocooler","Cryogenic_Heat_Exchanger"],"mach":[0.0,0.8],"variable_mass":true,"engine_counts":[2,4,6],"mountings":["wing","wing_distributed","fuselage_aft"],"wired":false,"excluded":false,"variables":["cryogen_proportion","rotor_skin_temperature_k","dynamo_efficiency","number_of_powersupplies","cryocooler_efficiency","hts_current_a","fan_pressure_ratio"],"description":"As above, but excited by an HTS DC dynamo instead of current leads - removes the dominant cryogenic heat leak.","suave":"Components/Energy/Networks/Turboelectric_HTS_Dynamo_Ducted_Fan.py"},{"name":"Propulsor_Surrogate","family":"data_driven","chain":[],"energy":["Fuel_Tank"],"support":["Avionics","Payload"],"thermal":[],"mach":[0.0,0.9],"variable_mass":true,"engine_counts":[2,4],"mountings":["wing","fuselage_aft"],"wired":false,"excluded":false,"variables":["thrust_anchor_scale","sfc_anchor_scale","altitude_input_scale","thrust_input_scale","sfc_rubber_scale","sealevel_static_thrust_n"],"description":"An engine deck read from data and fitted with a surrogate - thrust and SFC interpolated rather than modelled.","suave":"Components/Energy/Networks/Propulsor_Surrogate.py"}],"library":{"thermodynamic":["Ram","Compression_Nozzle","Compressor","Fan","Combustor","Turbine","Expansion_Nozzle","Supersonic_Nozzle","de_Laval_Nozzle","Rocket_Combustor"],"shaft":["Internal_Combustion_Engine","Motor","Motor_Lo_Fid","Motor_HTS_Rotor","Generator_Zero_Fid","Turboelectric","Gearbox","Shaft_Power_Off_Take"],"propulsor":["Propeller","Propeller_Lo_Fid","Rotor","Lift_Rotor"],"energy_source":["Battery_Lithium_Ion_LiNiMnCoO2_18650","Battery_Lithium_Ion_LiFePO4_18650","Battery_Lithium_Sulfur","Battery_Lithium_Air","Battery_Aluminum_Air","Fuel_Tank","Solar_Panel","Fuel_Cell"],"distribution":["Electronic_Speed_Controller","Solar_Logic","Cryogenic_Lead","HTS_DC_Supply","HTS_DC_Dynamo_Basic","HTS_Dynamo_Supply"],"thermal":["Cryocooler","Cryogenic_Heat_Exchanger"],"systems":["Avionics","Payload"]},"role_of":{"Ram":"thermodynamic","Compression_Nozzle":"thermodynamic","Compressor":"thermodynamic","Fan":"thermodynamic","Combustor":"thermodynamic","Turbine":"thermodynamic","Expansion_Nozzle":"thermodynamic","Supersonic_Nozzle":"thermodynamic","de_Laval_Nozzle":"thermodynamic","Rocket_Combustor":"thermodynamic","Internal_Combustion_Engine":"shaft","Motor":"shaft","Motor_Lo_Fid":"shaft","Motor_HTS_Rotor":"shaft","Generator_Zero_Fid":"shaft","Turboelectric":"shaft","Gearbox":"shaft","Shaft_Power_Off_Take":"shaft","Propeller":"propulsor","Propeller_Lo_Fid":"propulsor","Rotor":"propulsor","Lift_Rotor":"propulsor","Battery_Lithium_Ion_LiNiMnCoO2_18650":"energy_source","Battery_Lithium_Ion_LiFePO4_18650":"energy_source","Battery_Lithium_Sulfur":"energy_source","Battery_Lithium_Air":"energy_source","Battery_Aluminum_Air":"energy_source","Fuel_Tank":"energy_source","Solar_Panel":"energy_source","Fuel_Cell":"energy_source","Electronic_Speed_Controller":"distribution","Solar_Logic":"distribution","Cryogenic_Lead":"distribution","HTS_DC_Supply":"distribution","HTS_DC_Dynamo_Basic":"distribution","HTS_Dynamo_Supply":"distribution","Cryocooler":"thermal","Cryogenic_Heat_Exchanger":"thermal","Avionics":"systems","Payload":"systems"},"suave_paths":{"Ram":"Components/Energy/Converters/Ram.py","Compression_Nozzle":"Components/Energy/Converters/Compression_Nozzle.py","Compressor":"Components/Energy/Converters/Compressor.py","Fan":"Components/Energy/Converters/Fan.py","Combustor":"Components/Energy/Converters/Combustor.py","Turbine":"Components/Energy/Converters/Turbine.py","Expansion_Nozzle":"Components/Energy/Converters/Expansion_Nozzle.py","Supersonic_Nozzle":"Components/Energy/Converters/Supersonic_Nozzle.py","de_Laval_Nozzle":"Components/Energy/Converters/de_Laval_Nozzle.py","Rocket_Combustor":"Components/Energy/Converters/Rocket_Combustor.py","Internal_Combustion_Engine":"Components/Energy/Converters/Internal_Combustion_Engine.py","Motor":"Components/Energy/Converters/Motor.py","Motor_Lo_Fid":"Components/Energy/Converters/Motor_Lo_Fid.py","Motor_HTS_Rotor":"Components/Energy/Converters/Motor_HTS_Rotor.py","Generator_Zero_Fid":"Components/Energy/Converters/Generator_Zero_Fid.py","Turboelectric":"Components/Energy/Converters/Turboelectric.py","Gearbox":"Components/Energy/Converters/Gearbox.py","Shaft_Power_Off_Take":"Components/Energy/Converters/Shaft_Power_Off_Take.py","Propeller":"Components/Energy/Converters/Propeller.py","Propeller_Lo_Fid":"Components/Energy/Converters/Propeller_Lo_Fid.py","Rotor":"Components/Energy/Converters/Rotor.py","Lift_Rotor":"Components/Energy/Converters/Lift_Rotor.py","Battery_Lithium_Ion_LiNiMnCoO2_18650":"Components/Energy/Storages/Batteries/Constant_Mass/Lithium_Ion_LiNiMnCoO2_18650.py","Battery_Lithium_Ion_LiFePO4_18650":"Components/Energy/Storages/Batteries/Constant_Mass/Lithium_Ion_LiFePO4_18650.py","Battery_Lithium_Sulfur":"Components/Energy/Storages/Batteries/Constant_Mass/Lithium_Sulfur.py","Battery_Lithium_Air":"Components/Energy/Storages/Batteries/Variable_Mass/Lithium_Air.py","Battery_Aluminum_Air":"Components/Energy/Storages/Batteries/Variable_Mass/Aluminum_Air.py","Fuel_Tank":"Components/Energy/Storages/Fuel_Tanks/Fuel_Tank.py","Solar_Panel":"Components/Energy/Converters/Solar_Panel.py","Fuel_Cell":"Components/Energy/Converters/Fuel_Cell.py","Electronic_Speed_Controller":"Components/Energy/Distributors/Electronic_Speed_Controller.py","Solar_Logic":"Components/Energy/Distributors/Solar_Logic.py","Cryogenic_Lead":"Components/Energy/Distributors/Cryogenic_Lead.py","HTS_DC_Supply":"Components/Energy/Distributors/HTS_DC_Supply.py","HTS_DC_Dynamo_Basic":"Components/Energy/Distributors/HTS_DC_Dynamo_Basic.py","HTS_Dynamo_Supply":"Components/Energy/Distributors/HTS_Dynamo_Supply.py","Cryocooler":"Components/Energy/Cooling/Cryocooler.py","Cryogenic_Heat_Exchanger":"Components/Energy/Cooling/Cryogenic_Heat_Exchanger.py","Avionics":"Components/Energy/Peripherals/Avionics.py","Payload":"Components/Energy/Peripherals/Payload.py"},"productions":[{"name":"cell_chemistry","mandatory":true,"options":[{"label":"nmc","components":["Battery_Lithium_Ion_LiNiMnCoO2_18650"],"weight":0.5,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["cell_specific_energy_whkg","cell_c_rate_limit"]},{"label":"lfp","components":["Battery_Lithium_Ion_LiFePO4_18650"],"weight":0.22,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["cell_specific_energy_whkg","cell_c_rate_limit"]},{"label":"lithium_sulfur","components":["Battery_Lithium_Sulfur"],"weight":0.16,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["cell_specific_energy_whkg","cell_c_rate_limit"]},{"label":"lithium_air","components":["Battery_Lithium_Air"],"weight":0.07,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["cell_specific_energy_whkg"]},{"label":"aluminium_air","components":["Battery_Aluminum_Air"],"weight":0.05,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["cell_specific_energy_whkg"]}]},{"name":"fuel_cell","mandatory":false,"options":[{"label":"none","components":[],"weight":0.78,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":[]},{"label":"range_extender","components":["Fuel_Cell"],"weight":0.22,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["fuel_cell_power_kw","fuel_cell_efficiency"]}]},{"name":"tank_layout","mandatory":true,"options":[{"label":"wing","components":["Fuel_Tank"],"weight":0.55,"requires":["s","u","b","s","o","n","i","c","_","t","a","n","k","a","g","e"],"variables":["wing_tank_fraction"]},{"label":"wing_and_centre","components":["Fuel_Tank","Fuel_Tank"],"weight":0.32,"requires":["s","u","b","s","o","n","i","c","_","t","a","n","k","a","g","e"],"variables":["wing_tank_fraction","centre_tank_fraction"]},{"label":"fuselage","components":["Fuel_Tank"],"weight":0.13,"requires":["h","a","s","_","f","u","e","l"],"variables":["fuselage_tank_fraction"]}]},{"name":"motor_model","mandatory":true,"options":[{"label":"high_fidelity","components":["Motor"],"weight":0.62,"requires":["h","a","s","_","e","l","e","c","t","r","i","c","_","d","r","i","v","e"],"variables":["motor_kv","motor_resistance_ohm","motor_no_load_current_a"]},{"label":"low_fidelity","components":["Motor_Lo_Fid"],"weight":0.38,"requires":["h","a","s","_","e","l","e","c","t","r","i","c","_","d","r","i","v","e"],"variables":["motor_efficiency"]}]},{"name":"propulsor_model","mandatory":true,"options":[{"label":"blade_element","components":["Propeller"],"weight":0.7,"requires":["h","a","s","_","p","r","o","p","e","l","l","e","r"],"variables":["propeller_blade_count","propeller_tip_mach"]},{"label":"actuator_disk","components":["Propeller_Lo_Fid"],"weight":0.3,"requires":["h","a","s","_","p","r","o","p","e","l","l","e","r"],"variables":["propulsive_efficiency"]}]},{"name":"gearbox","mandatory":false,"options":[{"label":"direct_drive","components":[],"weight":0.55,"requires":["h","a","s","_","p","r","o","p","e","l","l","e","r"],"variables":[]},{"label":"geared","components":["Gearbox"],"weight":0.45,"requires":["h","a","s","_","p","r","o","p","e","l","l","e","r"],"variables":["gear_ratio","gearbox_efficiency"]}]},{"name":"shaft_offtake","mandatory":false,"options":[{"label":"none","components":[],"weight":0.6,"requires":["h","a","s","_","t","u","r","b","o","m","a","c","h","i","n","e","r","y"],"variables":[]},{"label":"offtake","components":["Shaft_Power_Off_Take"],"weight":0.4,"requires":["h","a","s","_","t","u","r","b","o","m","a","c","h","i","n","e","r","y"],"variables":["offtake_power_kw"]}]},{"name":"spools","mandatory":true,"options":[{"label":"two_spool","components":[],"weight":0.72,"requires":["h","a","s","_","t","u","r","b","o","m","a","c","h","i","n","e","r","y"],"variables":[]},{"label":"three_spool","components":["Compressor","Turbine"],"weight":0.28,"requires":["h","a","s","_","t","u","r","b","o","m","a","c","h","i","n","e","r","y"],"variables":["ipc_pressure_ratio"]}]},{"name":"fan_drive","mandatory":true,"options":[{"label":"direct","components":[],"weight":0.68,"requires":["h","a","s","_","f","a","n"],"variables":[]},{"label":"geared","components":["Gearbox"],"weight":0.32,"requires":["h","a","s","_","f","a","n"],"variables":["fan_gear_ratio"]}]},{"name":"hts_excitation","mandatory":true,"options":[{"label":"current_leads","components":["Cryogenic_Lead","HTS_DC_Supply"],"weight":0.5,"requires":["l","e","a","d","s"],"variables":["number_of_leads","hts_current_a"]},{"label":"dc_dynamo","components":["HTS_DC_Dynamo_Basic","HTS_Dynamo_Supply"],"weight":0.5,"requires":["d","y","n","a","m","o"],"variables":["dynamo_efficiency"]}]},{"name":"cryo_cooling","mandatory":true,"options":[{"label":"cryocooler_only","components":["Cryocooler"],"weight":0.3,"requires":["c","r","y","o","g","e","n","i","c"],"variables":["cryocooler_efficiency"]},{"label":"cryogen_only","components":["Cryogenic_Heat_Exchanger"],"weight":0.28,"requires":["c","r","y","o","g","e","n","i","c"],"variables":["cryogen_proportion"]},{"label":"hybrid_cooling","components":["Cryocooler","Cryogenic_Heat_Exchanger"],"weight":0.42,"requires":["c","r","y","o","g","e","n","i","c"],"variables":["cryocooler_efficiency","cryogen_proportion"]}]},{"name":"esc","mandatory":true,"options":[{"label":"standard","components":["Electronic_Speed_Controller"],"weight":1.0,"requires":["h","a","s","_","b","a","t","t","e","r","y"],"variables":["esc_efficiency"]}]}]};
+
+/* ---------------------------------------------------------------- model */
+const FAMILY_ORDER = ["electric","solar","gas_turbine","piston","high_speed","hybrid","data_driven"];
+const ROLE_ORDER = ["thermodynamic","shaft","propulsor","energy_source","distribution","thermal","systems"];
+const ROLE_SLOT = {thermodynamic:1, shaft:2, propulsor:3, energy_source:4, distribution:5, thermal:6, systems:7};
+const EDGE_LABEL = {chain:"propulsive chain", energy:"energy source", support:"support",
+                    thermal:"thermal", tree:"hierarchy", module:"SUAVE module", grammar:"grammar option"};
+const TIERS = {root:0, family:1, network:2, production:2, component:3, module:4};
+const GEO = {                                   // ring radius and height per kind
+  root:{r:0,   y:-250}, family:{r:110, y:-140}, network:{r:225, y:-10},
+  production:{r:395, y:-70}, component:{r:340, y:130}, module:{r:455, y:235},
+};
+
+const nodes = [], nodeById = new Map(), edges = [];
+function addNode(n){ nodes.push(n); nodeById.set(n.id, n); return n; }
+
+// tier 0-2: root, families, networks
+addNode({id:"root", kind:"root", label:"SUAVE", sub:"energy networks"});
+const fams = FAMILY_ORDER.filter(f => DATA.networks.some(n => n.family === f));
+fams.forEach((f, i) => {
+  const a = (i + .5) / fams.length * Math.PI * 2;
+  const mine = DATA.networks.filter(n => n.family === f);
+  addNode({id:"fam:"+f, kind:"family", label:f.replace(/_/g," "), angle:a, family:f,
+           sub:mine.length + " networks"});
+  edges.push({a:"root", b:"fam:"+f, type:"tree"});
+  const w = (Math.PI * 2 / fams.length) * .74;
+  mine.forEach((n, j) => {
+    const aa = a + (mine.length === 1 ? 0 : (j / (mine.length - 1) - .5) * w);
+    addNode({id:"net:"+n.name, kind:"network", label:n.name, angle:aa, family:f, net:n});
+    edges.push({a:"fam:"+f, b:"net:"+n.name, type:"tree"});
+    for (const [type, list] of [["chain",n.chain],["energy",n.energy],
+                                ["support",n.support],["thermal",n.thermal]])
+      list.forEach(c => edges.push({a:"net:"+n.name, b:"cmp:"+c, type}));
+  });
+});
+
+// tier 3: components, grouped into angular sectors by role
+const roles = ROLE_ORDER.filter(r => DATA.library[r]);
+roles.forEach((r, i) => {
+  const a0 = (i + .5) / roles.length * Math.PI * 2;
+  const list = DATA.library[r], w = (Math.PI * 2 / roles.length) * .8;
+  list.forEach((c, j) => {
+    const aa = a0 + (list.length === 1 ? 0 : (j / (list.length - 1) - .5) * w);
+    addNode({id:"cmp:"+c, kind:"component", label:c, angle:aa, role:r,
+             suave:DATA.suave_paths[c] || null});
+  });
+});
+
+// tier 4: the SUAVE package directory each component actually lives in
+const byDir = new Map();
+for (const [c, p] of Object.entries(DATA.suave_paths)) {
+  if (!p) continue;
+  const dir = p.split("/").slice(0, -1).join("/");
+  if (!byDir.has(dir)) byDir.set(dir, []);
+  byDir.get(dir).push(c);
+}
+for (const [dir, comps] of byDir) {
+  const angles = comps.map(c => nodeById.get("cmp:"+c).angle);
+  // circular mean, so a sector spanning the seam does not average to the far side
+  const mx = angles.reduce((s,a)=>s+Math.cos(a),0)/angles.length;
+  const my = angles.reduce((s,a)=>s+Math.sin(a),0)/angles.length;
+  addNode({id:"mod:"+dir, kind:"module", label:dir.split("/").pop(), angle:Math.atan2(my,mx),
+           sub:dir, comps});
+  comps.forEach(c => edges.push({a:"cmp:"+c, b:"mod:"+dir, type:"module"}));
+}
+
+// optional tier: grammar productions that add components
+DATA.productions.forEach((p, i) => {
+  const a = (i + .5) / DATA.productions.length * Math.PI * 2;
+  const comps = [...new Set(p.options.flatMap(o => o.components))].filter(c => nodeById.has("cmp:"+c));
+  addNode({id:"prod:"+p.name, kind:"production", label:p.name.replace(/_/g," "), angle:a, prod:p, comps});
+  comps.forEach(c => edges.push({a:"prod:"+p.name, b:"cmp:"+c, type:"grammar"}));
+});
+
+// geometry + adjacency
+for (const n of nodes) {
+  const g = GEO[n.kind];
+  n.x = Math.cos(n.angle || 0) * g.r;
+  n.z = Math.sin(n.angle || 0) * g.r;
+  n.y = g.y;
+  n.tier = TIERS[n.kind];
+  n.deg = 0;
+}
+const adj = new Map(nodes.map(n => [n.id, new Set()]));
+for (const e of edges) {
+  if (!nodeById.has(e.a) || !nodeById.has(e.b)) continue;
+  adj.get(e.a).add(e.b); adj.get(e.b).add(e.a);
+  nodeById.get(e.a).deg++; nodeById.get(e.b).deg++;
+}
+const liveEdges = edges.filter(e => nodeById.has(e.a) && nodeById.has(e.b));
+
+/* ---------------------------------------------------------------- state */
+const S = {
+  yaw:.6, pitch:.42, dist:1180, spin:true, allLabels:false, table:false,
+  hover:null, sel:null, query:"",
+  tiers:{family:true, network:true, component:true, module:true, production:false},
+  families:new Set(fams),
+  types:{chain:true, energy:true, support:true, thermal:true, tree:true, module:true, grammar:true},
+};
+
+const cv = document.getElementById("c"), ctx = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  const r = cv.parentElement.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = r.width; H = r.height;
+  cv.width = W * DPR; cv.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+new ResizeObserver(resize).observe(document.getElementById("stage"));
+
+let CSSV = {};
+function readTheme(){
+  const s = getComputedStyle(document.documentElement);
+  CSSV = {};
+  for (const k of ["--surface-1","--surface-2","--surface-3","--text-primary","--text-secondary",
+                   "--text-muted","--rule","--accent","--good","--critical",
+                   "--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"])
+    CSSV[k] = s.getPropertyValue(k).trim();
+}
+readTheme();
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readTheme(); buildLegend(); });
+
+const roleColor = r => CSSV["--s" + (ROLE_SLOT[r] || 8)];
+function nodeColor(n){
+  if (n.kind === "component") return roleColor(n.role);
+  if (n.kind === "network")  return n.net.excluded ? CSSV["--critical"]
+                                 : n.net.wired ? CSSV["--good"] : CSSV["--text-muted"];
+  if (n.kind === "production") return CSSV["--text-secondary"];
+  return CSSV["--text-primary"];
+}
+const NODE_R = {root:13, family:10, network:7.5, component:5.5, module:7.5, production:5.5};
+
+/* ------------------------------------------------------------ projection */
+function project(p){
+  const cy = Math.cos(S.yaw), sy = Math.sin(S.yaw);
+  let x = p.x * cy - p.z * sy, z = p.x * sy + p.z * cy, y = p.y;
+  const cp = Math.cos(S.pitch), sp = Math.sin(S.pitch);
+  const y2 = y * cp - z * sp; z = y * sp + z * cp;
+  const zc = z + S.dist;
+  if (zc < 60) return null;
+  const f = 900 / zc;
+  return {sx: W/2 + x * f, sy: H/2 - y2 * f, f, z: zc};
+}
+const visibleNode = n =>
+  (n.kind === "root") ||
+  (S.tiers[n.kind] !== false) &&
+  (!n.family || S.families.has(n.family)) &&
+  (n.kind !== "component" || true);
+
+function matches(n){
+  if (!S.query) return true;
+  const q = S.query.toLowerCase();
+  return n.label.toLowerCase().includes(q) || n.id.toLowerCase().includes(q);
+}
+function focusSet(){
+  const id = S.sel || S.hover;
+  if (!id) return null;
+  const set = new Set([id]);
+  for (const nb of adj.get(id) || []) set.add(nb);
+  return set;
+}
+
+/* ---------------------------------------------------------------- render */
+function draw(){
+  ctx.clearRect(0, 0, W, H);
+  const proj = new Map();
+  for (const n of nodes) if (visibleNode(n)) { const p = project(n); if (p) proj.set(n.id, p); }
+  const focus = focusSet();
+
+  // edges, back to front
+  const drawable = [];
+  for (const e of liveEdges) {
+    if (!S.types[e.type]) continue;
+    const A = proj.get(e.a), B = proj.get(e.b);
+    if (!A || !B) continue;
+    const na = nodeById.get(e.a), nb = nodeById.get(e.b);
+    const inFocus = !focus || (focus.has(e.a) && focus.has(e.b));
+    drawable.push({e, na, nb, A, B, inFocus, depth:(A.z + B.z) / 2});
+  }
+  drawable.sort((p, q) => q.depth - p.depth);
+  for (const d of drawable) {
+    const {na, nb, e} = d;
+    const tgt = nb.kind === "component" ? nb : (na.kind === "component" ? na : null);
+    const base = e.type === "tree" ? CSSV["--text-muted"]
+               : e.type === "module" ? CSSV["--rule"]
+               : e.type === "grammar" ? CSSV["--text-secondary"]
+               : tgt ? roleColor(tgt.role) : CSSV["--text-muted"];
+    let alpha = e.type === "tree" ? .5 : e.type === "module" ? .38 : .42;
+    if (focus) alpha = d.inFocus ? .95 : .05;
+    else if (S.query) alpha *= (matches(na) || matches(nb)) ? 1 : .12;
+    ctx.strokeStyle = base; ctx.globalAlpha = alpha;
+    ctx.lineWidth = d.inFocus && focus ? 2 : 1.1;
+    ctx.setLineDash(e.type === "energy" ? [5,4] : e.type === "support" ? [2,4]
+                  : e.type === "thermal" ? [7,3,2,3] : e.type === "grammar" ? [1,3] : []);
+    // quadratic bow pulled toward the axis, so bundles read as a tree not a hairball
+    const m = {x:(na.x + nb.x) / 2 * .58, y:(na.y + nb.y) / 2, z:(na.z + nb.z) / 2 * .58};
+    const P = project(m);
+    ctx.beginPath(); ctx.moveTo(d.A.sx, d.A.sy);
+    if (P) ctx.quadraticCurveTo(P.sx, P.sy, d.B.sx, d.B.sy); else ctx.lineTo(d.B.sx, d.B.sy);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+  // nodes, back to front
+  const list = [...proj.entries()].map(([id, p]) => ({n:nodeById.get(id), p}))
+                                  .sort((a, b) => b.p.z - a.p.z);
+  for (const {n, p} of list) {
+    const inFocus = !focus || focus.has(n.id);
+    let alpha = focus ? (inFocus ? 1 : .12) : (S.query ? (matches(n) ? 1 : .15) : 1);
+    const r = Math.max(2.5, NODE_R[n.kind] * p.f * 1.15);
+    ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.arc(p.sx, p.sy, r, 0, 6.2832);
+    ctx.fillStyle = nodeColor(n); ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = CSSV["--surface-1"]; ctx.stroke();
+    if (n.id === S.sel || n.id === S.hover) {
+      ctx.beginPath(); ctx.arc(p.sx, p.sy, r + 4, 0, 6.2832);
+      ctx.strokeStyle = CSSV["--text-primary"]; ctx.lineWidth = 1.6; ctx.stroke();
+    }
+    // a network that SUAVE cannot fly gets a ring, so status is not colour alone
+    if (n.kind === "network" && !n.net.wired) {
+      ctx.beginPath(); ctx.arc(p.sx, p.sy, r + 2.5, 0, 6.2832);
+      ctx.strokeStyle = nodeColor(n); ctx.lineWidth = 1; ctx.setLineDash([2,2]);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    const label = S.allLabels || n.kind === "root" || n.kind === "family" || n.kind === "module"
+               || n.kind === "network" || n.id === S.sel || n.id === S.hover
+               || (focus && focus.has(n.id));
+    if (label && alpha > .3) {
+      const fs = Math.max(9, Math.min(14, 11 * p.f * 1.25));
+      ctx.font = `${n.kind === "root" || n.kind === "family" ? 700 : 500} ${fs}px Archivo, sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+      ctx.lineWidth = 3; ctx.strokeStyle = CSSV["--surface-1"];
+      ctx.strokeText(n.label, p.sx, p.sy - r - 3);
+      ctx.fillStyle = CSSV["--text-primary"];
+      ctx.fillText(n.label, p.sx, p.sy - r - 3);
+    }
+  }
+  ctx.globalAlpha = 1;
+  window.__proj = proj;
+}
+
+let raf = 0;
+function loop(){
+  if (S.spin && !drag.on) S.yaw += .0016;
+  draw();
+  raf = requestAnimationFrame(loop);
+}
+
+/* ----------------------------------------------------------- interaction */
+const drag = {on:false, x:0, y:0};
+cv.addEventListener("pointerdown", e => {
+  drag.on = true; drag.x = e.clientX; drag.y = e.clientY;
+  cv.classList.add("dragging"); cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener("pointerup", e => {
+  drag.on = false; cv.classList.remove("dragging");
+  if (Math.abs(e.clientX - drag.x) < 4 && Math.abs(e.clientY - drag.y) < 4) {
+    S.sel = pick(e) ? pick(e).id : null; showPanel();
+  }
+});
+cv.addEventListener("pointermove", e => {
+  if (drag.on) {
+    S.yaw += (e.clientX - drag.x) * .006;
+    S.pitch = Math.max(-1.35, Math.min(1.35, S.pitch + (e.clientY - drag.y) * .005));
+    drag.x = e.clientX; drag.y = e.clientY;
+    return;
+  }
+  const hit = pick(e);
+  S.hover = hit ? hit.id : null;
+  const tip = document.getElementById("tip");
+  if (hit) {
+    tip.innerHTML = `<div class="n">${esc(hit.label)}</div><div class="m">${esc(subtitle(hit))}</div>`;
+    const r = cv.getBoundingClientRect();
+    tip.style.left = Math.min(e.clientX - r.left + 14, W - 290) + "px";
+    tip.style.top = (e.clientY - r.top + 14) + "px";
+    tip.style.opacity = 1;
+  } else tip.style.opacity = 0;
+});
+cv.addEventListener("pointerleave", () => {
+  S.hover = null; document.getElementById("tip").style.opacity = 0;
+});
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  S.dist = Math.max(420, Math.min(2600, S.dist * (1 + Math.sign(e.deltaY) * .11)));
+}, {passive:false});
+addEventListener("keydown", e => { if (e.key === "Escape") { S.sel = null; showPanel(); } });
+
+function pick(ev){
+  const r = cv.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  let best = null, bd = 16;
+  for (const [id, p] of (window.__proj || new Map())) {
+    const n = nodeById.get(id);
+    const d = Math.hypot(p.sx - mx, p.sy - my);
+    const rr = Math.max(2.5, NODE_R[n.kind] * p.f * 1.15) + 6;
+    if (d < Math.max(bd, rr) && d < bd + rr) { if (!best || d < bd) { best = n; bd = d; } }
+  }
+  return best;
+}
+function subtitle(n){
+  if (n.kind === "component") return `${n.role.replace(/_/g," ")} · used by ${
+    DATA.networks.filter(x => allComps(x).includes(n.label)).length} networks`;
+  if (n.kind === "network") return `${n.family.replace(/_/g," ")} · ${
+    n.net.wired ? "wired to SUAVE" : "no SUAVE wiring"}`;
+  if (n.kind === "family") return n.sub;
+  if (n.kind === "module") return n.sub;
+  if (n.kind === "production") return `${n.prod.options.length} options`;
+  return n.sub || "";
+}
+const allComps = n => [...n.chain, ...n.energy, ...n.support, ...n.thermal];
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+/* ---------------------------------------------------------------- panel */
+function showPanel(){
+  const el = document.getElementById("panel");
+  const n = S.sel ? nodeById.get(S.sel) : null;
+  if (!n) { el.innerHTML = intro(); return; }
+  let h = `<div class="kind">${esc(n.kind)}</div><h2>${esc(n.label)}</h2>`;
+
+  if (n.kind === "network") {
+    const d = n.net;
+    h += `<p>${esc(d.description)}</p>`;
+    h += `<p>${d.wired ? `<span class="pill" style="color:var(--good);border-color:var(--good)">wired</span>`
+                       : `<span class="pill" style="color:var(--text-muted);border-color:var(--rule)">no wiring</span>`}
+          ${d.excluded ? `<span class="pill" style="color:var(--critical);border-color:var(--critical)">excluded</span>` : ""}
+          ${d.variable_mass ? `<span class="pill" style="color:var(--text-secondary);border-color:var(--rule)">burns propellant</span>` : ""}</p>`;
+    h += `<section><h3>envelope</h3><ul>
+            <li>family <b>${esc(d.family)}</b></li>
+            <li>Mach <b>${d.mach[0]} – ${d.mach[1]}</b></li>
+            <li>engines <b>${d.engine_counts.join(", ")}</b></li>
+            <li>mountings <b>${d.mountings.join(", ")}</b></li></ul></section>`;
+    for (const [k, list] of [["propulsive chain", d.chain], ["energy source", d.energy],
+                             ["support", d.support], ["thermal", d.thermal]])
+      if (list.length) h += `<section><h3>${k}</h3><ul>${list.map(c =>
+        `<li class="link" data-go="cmp:${esc(c)}">${esc(c)}</li>`).join("")}</ul></section>`;
+    h += `<section><h3>design variables (${d.variables.length})</h3>
+          <p class="path">${d.variables.map(esc).join(", ")}</p></section>`;
+    if (d.suave) h += `<section><h3>SUAVE module</h3><p class="path">${esc(d.suave)}</p></section>`;
+  }
+
+  if (n.kind === "component") {
+    const users = DATA.networks.filter(x => allComps(x).includes(n.label));
+    h += `<p><span class="pill" style="color:${roleColor(n.role)};border-color:${roleColor(n.role)}">${
+      esc(n.role.replace(/_/g," "))}</span></p>`;
+    h += `<section><h3>SUAVE module</h3><p class="path">${n.suave ? esc(n.suave)
+          : "not a SUAVE class (grammar-level component)"}</p></section>`;
+    h += `<section><h3>used by ${users.length} network${users.length === 1 ? "" : "s"}</h3><ul>${
+      users.map(u => `<li class="link" data-go="net:${esc(u.name)}">${esc(u.name)}
+        <span class="path">${u.chain.includes(n.label) ? "chain"
+          : u.energy.includes(n.label) ? "energy" : u.support.includes(n.label)
+          ? "support" : "thermal"}</span></li>`).join("")}</ul></section>`;
+    const prods = DATA.productions.filter(p => p.options.some(o => o.components.includes(n.label)));
+    if (prods.length) h += `<section><h3>added by grammar</h3><ul>${prods.map(p => {
+      const opts = p.options.filter(o => o.components.includes(n.label)).map(o => o.label);
+      return `<li><b>${esc(p.name)}</b> → ${esc(opts.join(", "))}</li>`; }).join("")}</ul></section>`;
+  }
+
+  if (n.kind === "family") {
+    const mine = DATA.networks.filter(x => x.family === n.family);
+    h += `<section><h3>${mine.length} networks</h3><ul>${mine.map(m =>
+      `<li class="link" data-go="net:${esc(m.name)}">${esc(m.name)}${
+        m.wired ? "" : ` <span class="path">no wiring</span>`}</li>`).join("")}</ul></section>`;
+  }
+
+  if (n.kind === "module")
+    h += `<section><h3>${esc(n.sub)}</h3><ul>${n.comps.map(c =>
+      `<li class="link" data-go="cmp:${esc(c)}">${esc(c)}</li>`).join("")}</ul></section>`;
+
+  if (n.kind === "production") {
+    h += `<p>${n.prod.mandatory ? "Fires for every applicable network."
+                                : "Optional — may add nothing."}</p>`;
+    h += `<section><h3>${n.prod.options.length} options</h3><ul>${n.prod.options.map(o =>
+      `<li><b>${esc(o.label)}</b> (weight ${o.weight})${o.components.length
+        ? " → " + o.components.map(esc).join(", ") : " → nothing"}</li>`).join("")}</ul></section>`;
+  }
+
+  if (n.kind === "root") h += intro();
+  el.innerHTML = h;
+  el.querySelectorAll("[data-go]").forEach(x => x.addEventListener("click", () => {
+    S.sel = x.dataset.go; showPanel();
+  }));
+}
+function intro(){
+  return `<section><h3>what this shows</h3>
+    <p>Every SUAVE energy network in the generator, and the components each one is
+    assembled from. Rings are tiers: <b>SUAVE</b> at the centre, then the seven
+    propulsion families, the seventeen networks, the forty components grouped into
+    angular sectors by role, and the SUAVE package directory each component's class
+    actually lives in.</p>
+    <p>The cross-ring links are the interesting part: a component sits in one role
+    sector but is pulled on by every network that uses it, so shared parts show up as
+    hubs.</p></section>
+    <section><h3>controls</h3><ul>
+      <li>drag to rotate, wheel to zoom</li>
+      <li>hover to isolate a node and its links</li>
+      <li>click to pin it and read the detail here</li>
+      <li><b>Esc</b> clears the selection</li></ul></section>`;
+}
+
+/* --------------------------------------------------------------- chrome */
+function buildLegend(){
+  const el = document.getElementById("legend");
+  el.innerHTML = `<div class="ttl">component role</div>` +
+    roles.map(r => `<div class="item"><span class="dot" style="background:${roleColor(r)}"></span>${
+      esc(r.replace(/_/g," "))}</div>`).join("") +
+    `<div class="ttl" style="margin-top:6px">network</div>
+     <div class="item"><span class="dot" style="background:${CSSV["--good"]}"></span>wired to SUAVE</div>
+     <div class="item"><span class="dot" style="background:${CSSV["--text-muted"]};
+       outline:1px dashed ${CSSV["--text-muted"]}; outline-offset:2px"></span>no wiring</div>
+     <div class="ttl" style="margin-top:6px">link</div>
+     <div class="item"><span class="ln" style="border-top-style:solid;border-color:${CSSV["--text-secondary"]}"></span>chain / hierarchy</div>
+     <div class="item"><span class="ln" style="border-top-style:dashed;border-color:${CSSV["--text-secondary"]}"></span>energy source</div>
+     <div class="item"><span class="ln" style="border-top-style:dotted;border-color:${CSSV["--text-secondary"]}"></span>support</div>`;
+}
+function chip(row, label, on, fn){
+  const b = document.createElement("button");
+  b.className = "chip" + (on ? " on" : ""); b.textContent = label;
+  b.addEventListener("click", () => { b.classList.toggle("on"); fn(b.classList.contains("on")); });
+  document.getElementById(row).appendChild(b);
+}
+["family","network","component","module","production"].forEach(t =>
+  chip("tierRow", t, S.tiers[t], v => { S.tiers[t] = v; }));
+fams.forEach(f => chip("famRow", f.replace(/_/g," "), true, v => {
+  v ? S.families.add(f) : S.families.delete(f);
+}));
+["chain","energy","support","thermal","grammar"].forEach(t =>
+  chip("edgeRow", t, S.types[t], v => { S.types[t] = v; }));
+
+document.getElementById("reset").onclick = () => {
+  Object.assign(S, {yaw:.6, pitch:.42, dist:1180, sel:null, query:""});
+  document.getElementById("search").value = ""; showPanel();
+};
+document.getElementById("spin").onclick = e => {
+  S.spin = !S.spin; e.currentTarget.classList.toggle("on", S.spin);
+};
+document.getElementById("labels").onclick = e => {
+  S.allLabels = !S.allLabels; e.currentTarget.classList.toggle("on", S.allLabels);
+};
+document.getElementById("theme").onclick = () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === "dark" ? "light" : cur === "light" ? "dark"
+             : (matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark");
+  document.documentElement.setAttribute("data-theme", next);
+  readTheme(); buildLegend();
+};
+document.getElementById("search").addEventListener("input", e => { S.query = e.target.value.trim(); });
+document.getElementById("tableBtn").onclick = () => { document.body.classList.add("table-mode"); };
+document.getElementById("backBtn").onclick = () => { document.body.classList.remove("table-mode"); };
+
+document.getElementById("counts").innerHTML =
+  `<span><b>${DATA.networks.length}</b> networks</span>
+   <span><b>${Object.keys(DATA.role_of).length}</b> components</span>
+   <span><b>${liveEdges.filter(e => ["chain","energy","support","thermal"].includes(e.type)).length}</b> component links</span>
+   <span><b>${DATA.productions.length}</b> grammar productions</span>`;
+
+function buildTables(){
+  const comps = Object.keys(DATA.role_of);
+  document.getElementById("tables").innerHTML = `
+    <h2 style="font-size:16px">Networks → components</h2>
+    <table><thead><tr><th>Network</th><th>Family</th><th>SUAVE</th><th>Chain</th>
+      <th>Energy</th><th>Support</th><th>Thermal</th></tr></thead><tbody>${
+      DATA.networks.map(n => `<tr><td><b>${esc(n.name)}</b></td><td>${esc(n.family)}</td>
+        <td>${n.wired ? "wired" : "—"}</td><td>${n.chain.map(esc).join(", ")}</td>
+        <td>${n.energy.map(esc).join(", ")}</td><td>${n.support.map(esc).join(", ")}</td>
+        <td>${n.thermal.map(esc).join(", ") || "—"}</td></tr>`).join("")}</tbody></table>
+    <h2 style="font-size:16px;margin-top:24px">Components → role, SUAVE module, users</h2>
+    <table><thead><tr><th>Component</th><th>Role</th><th>SUAVE module</th><th>Used by</th></tr></thead><tbody>${
+      comps.map(c => `<tr><td><b>${esc(c)}</b></td><td>${esc(DATA.role_of[c])}</td>
+        <td class="path">${esc(DATA.suave_paths[c] || "—")}</td>
+        <td>${DATA.networks.filter(n => allComps(n).includes(c)).map(n => esc(n.name)).join(", ") || "—"}</td>
+        </tr>`).join("")}</tbody></table>`;
+}
+
+resize(); buildLegend(); showPanel(); buildTables(); loop();
+</script>
+</body>
+</html>
